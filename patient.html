@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>환자 페이지 - 케어노트 (CareNote)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: "Inter", sans-serif; background-color: #f9fafb; /* gray-50 */ }
+        /* 화면 섹션 제어 */
+        .page-section { display: none; }
+        .page-section.active { display: block; }
+        
+        /* [수정] 사이드바 환자 링크 스타일 */
+        .sidebar-patient-link {
+            display: block;
+            padding: 0.85rem 1rem; /* [수정] 패딩 증가 */
+            border-radius: 0.5rem;
+            color: #d1d5db; /* gray-300 */
+            font-weight: 500;
+            font-size: 1.125rem; /* [수정] 폰트 크기 증가 */
+            cursor: pointer;
+            margin-bottom: 0.5rem; /* [수정] 간격 증가 */
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        .sidebar-patient-link:hover {
+            background-color: #374151; /* gray-700 */
+            color: #ffffff;
+        }
+        /* 선택된 환자 스타일 */
+        .sidebar-patient-link.selected {
+            background-color: #4338ca; /* indigo-700 */
+            color: #ffffff;
+            font-weight: 600;
+        }
+        
+        /* 질문지 스타일 */
+        .question-card {
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb; /* [추가] 경계선 */
+            border-radius: 0.75rem; /* [수정] 더 둥글게 */
+            padding: 2rem; /* [수정] 패딩 증가 */
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* [수정] 그림자 축소 */
+        }
+        .question-title {
+            font-size: 1.25rem; /* [수정] 폰트 크기 증가 */
+            font-weight: 600;
+            margin-bottom: 1.5rem; /* [수정] 마진 증가 */
+            line-height: 1.6;
+            color: #111827; /* gray-900 */
+        }
+        .question-label {
+            display: block;
+            background-color: #ffffff;
+            border: 2px solid #e5e7eb; /* [수정] 경계선 두껍게 */
+            border-radius: 0.5rem;
+            padding: 1rem 1.25rem; /* [수정] 패딩 증가 */
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .question-label:hover {
+            background-color: #f9fafb; /* gray-50 */
+            border-color: #9ca3af; /* gray-400 */
+        }
+        .question-label input {
+            margin-right: 0.75rem;
+            /* [추가] 라디오/체크박스 꾸미기 */
+            width: 1.25em;
+            height: 1.25em;
+            accent-color: #4f46e5; /* indigo-600 */
+        }
+        /* [추가] 선택된 라벨 */
+        .question-label input:checked + span {
+            color: #4f46e5; /* indigo-600 */
+            font-weight: 600;
+        }
+        .question-label:has(input:checked) {
+            background-color: #eef2ff; /* indigo-50 */
+            border-color: #4f46e5; /* indigo-600 */
+        }
+
+        .guide-text {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-top: 1rem;
+        }
+        /* 척도형 질문 스타일 */
+        .radio-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            gap: 0.5rem;
+            padding: 0.5rem 0;
+        }
+        .radio-group label {
+            cursor: pointer;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem;
+            transition: all 0.2s;
+        }
+        .radio-group label:hover {
+            background-color: #f3f4f6;
+        }
+        .radio-group input {
+            margin-right: 0.5rem;
+            accent-color: #4f46e5;
+        }
+        .radio-group label:has(input:checked) {
+            background-color: #eef2ff;
+            color: #4f46e5;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 h-screen">
+
+    <div class="h-full flex">
+        <!-- [수정] 왼쪽 사이드바 (디자인 변경) -->
+        <aside class="w-72 bg-gray-900 text-white h-full p-6 flex flex-col">
+            <h2 class="text-3xl font-bold mb-8 flex items-center gap-2">
+                <!-- [수정] 새 로고 -->
+                <svg class="w-8 h-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10.5 3.75a.75.75 0 0 1 .75.75v.75h.75a.75.75 0 0 1 0 1.5h-.75v.75a.75.75 0 0 1-1.5 0v-.75h-.75a.75.75 0 0 1 0-1.5h.75v-.75a.75.75 0 0 1 .75-.75ZM13.5 3.75a.75.75 0 0 0-1.5 0v.75h-.75a.75.75 0 0 0 0 1.5h.75v.75a.75.75 0 0 0 1.5 0v-.75h.75a.75.75 0 0 0 0-1.5h-.75v-.75Z" clip-rule="evenodd" />
+                    <path fill-rule="evenodd" d="M3 5.25a3 3 0 0 1 3-3h3.75a.75.75 0 0 1 0 1.5H6a1.5 1.5 0 0 0-1.5 1.5v13.5a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-3.75a.75.75 0 0 1 1.5 0V19.5a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V5.25Zm15.53 1.47a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-2.25-2.25a.75.75 0 1 1 1.06-1.06l1.72 1.72 3.97-3.97a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
+                </svg>
+                사전 문진
+            </h2>
+            
+            <p class="text-sm font-medium text-gray-400 mb-2 px-1">대기 환자 목록</p>
+            <nav id="patientListSidebar" class="flex-1 overflow-y-auto">
+                <p id="patientLoadingMessage" class="text-gray-400 text-sm p-2">대기자 명단을 불러오는 중입니다...</p>
+                <!-- 
+                    renderPatientList 함수가 
+                    .sidebar-patient-link 요소를 여기에 채웁니다.
+                -->
+            </nav>
+            
+            <a href="index.html" class="w-full bg-gray-700 text-white py-3 px-4 rounded-lg font-semibold hover:bg-gray-600 transition mt-auto text-center flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M18 10a.75.75 0 0 1-.75.75H4.66l2.1 1.95a.75.75 0 1 1-1.02 1.1l-3.5-3.25a.75.75 0 0 1 0-1.1l3.5-3.25a.75.75 0 1 1 1.02 1.1l-2.1 1.95h12.59A.75.75 0 0 1 18 10Z" clip-rule="evenodd" /></svg>
+                처음으로
+            </a>
+        </aside>
+        
+        <!-- [수정] 메인 컨텐츠 -->
+        <main class="flex-1 p-10 bg-gray-50 overflow-y-auto"> <!-- [수정] 패딩, 배경색 -->
+
+            <!-- 1. 환영 화면 (기본) -->
+            <div id="welcomePage" class="page-section active max-w-3xl mx-auto text-center mt-20">
+                <h1 class="text-5xl font-bold mb-6 text-gray-800">환영합니다</h1>
+                <div class="bg-white p-12 rounded-lg shadow-xl border border-gray-200">
+                    <p class="text-2xl text-gray-700">&larr; 왼쪽 목록에서 본인 이름을 선택하여 문진을 시작해주세요.</p>
+                </div>
+            </div>
+
+            <!-- 2. 본인 확인 화면 -->
+            <div id="patientVerifyPage" class="page-section max-w-2xl mx-auto">
+                <button id="verifyBackButton" class="text-base text-blue-600 hover:text-blue-800 font-medium mb-4 inline-flex items-center gap-1">&larr; 이름 다시 선택</button>
+                <h1 class="text-4xl font-bold mb-8 text-gray-800">본인 확인</h1>
+                <div class="bg-white p-8 rounded-lg shadow-xl border border-gray-200">
+                    <p class="mb-6 text-center text-lg">
+                        <strong id="verifyPatientName" class="text-3xl font-bold text-blue-600"></strong> 님,
+                        <br>
+                        <span class="text-gray-600">본인 확인을 위해 생년월일 6자리를 입력해주세요.</span>
+                    </p>
+                    <form id="verifyForm">
+                        <label for="birthdateVerifyInput" class="block text-sm font-medium text-gray-700 text-center">생년월일 (예: 990101)</label>
+                        <input type="tel" id="birthdateVerifyInput" class="mt-2 block w-full text-center text-3xl p-4 border-2 border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500" maxlength="6" required>
+                        <button type="submit" class="w-full bg-blue-600 text-white py-4 px-6 rounded-lg text-xl font-semibold hover:bg-blue-700 transition mt-6">
+                            확인
+                        </button>
+                    </form>
+                    <p id="verifyError" class="mt-4 text-center text-base text-red-600"></p>
+                </div>
+            </div>
+
+            <!-- 3. 문진표 작성 화면 -->
+            <div id="questionnairePage" class="page-section max-w-3xl mx-auto">
+                <h1 class="text-4xl font-bold mb-8 text-gray-800">
+                    <span id="patientNameDisplay" class="text-blue-600"></span> 님, 문진표를 작성해주세요.
+                </h1>
+                
+                <form id="questionnaireForm">
+                    <!-- Q1: 주 호소 -->
+                    <div class="question-card">
+                        <label for="q1_main_complaint" class="question-title">1. 오늘 방문하시게 된 가장 주된 이유나, 환자님을 가장 힘들게 하는 점에 대해 편안하게 적어주세요.</label>
+                        <textarea id="q1_main_complaint" name="q1_main_complaint" rows="5" class="mt-1 block w-full px-4 py-3 border-2 border-gray-300 rounded-md shadow-sm text-base focus:border-blue-500 focus:ring-blue-500" placeholder="어떤 이야기든 좋습니다."></textarea>
+                        <p class="guide-text">예: 잠을 못 자서 오셨는지, 기분 때문에 오셨는지 등</p>
+                    </div>
+
+                    <!-- Q2: 감정 상태 -->
+                    <div class="question-card">
+                        <p class="question-title">2. 최근 2주간, 가장 자주 느끼신 감정이나 기분 상태를 모두 골라주세요.</p>
+                        <div id="q2_emotions_group" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label class="question-label flex items-center"><input type="checkbox" name="q2_emotions" value="anxiety"> <span>불안함</span></label>
+                            <label class="question-label flex items-center"><input type="checkbox" name="q2_emotions" value="depression"> <span>우울함</span></label>
+                            <label class="question-label flex items-center"><input type="checkbox" name="q2_emotions" value="lethargy"> <span>무기력함</span></label>
+                            <label class="question-label flex items-center"><input type="checkbox" name="q2_emotions" value="anger"> <span>분노/짜증</span></label>
+                            <label class="question-label flex items-center"><input type="checkbox" name="q2_emotions" value="restlessness"> <span>초조함</span></label>
+                            <label class="question-label flex items-center"><input type="checkbox" name="q2_emotions" value="emptiness"> <span>공허함</span></label>
+                            <label class="question-label flex items-center"><input type="checkbox" name="q2_emotions" value="sensitivity"> <span>예민함</span></label>
+                            <label class="question-label flex items-center"><input type="checkbox" name="q2_emotions" value="apathy"> <span>감정이 잘 안 느껴짐</span></label>
+                        </div>
+                    </div>
+
+                    <!-- Q3: 주요 증상 스크리닝 -->
+                    <div class="question-card">
+                        <p class="question-title">3. 최근 2주간, 아래의 문제들을 얼마나 자주 겪으셨나요?</p>
+                        <div class="space-y-6">
+                            <div>
+                                <p class="font-semibold text-lg mb-3">A. 수면 문제 (잠들기 어렵거나, 자주 깨거나, 너무 많이 잠)</p>
+                                <div id="q3_symptoms_a" class="radio-group text-base">
+                                    <label><input type="radio" name="q3_symptoms_a" value="0" required> <span>전혀(0)</span></label>
+                                    <label><input type="radio" name="q3_symptoms_a" value="1"> <span>며칠(1)</span></label>
+                                    <label><input type="radio" name="q3_symptoms_a" value="2"> <span>절반(2)</span></label>
+                                    <label><input type="radio" name="q3_symptoms_a" value="3"> <span>매일(3)</span></label>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="font-semibold text-lg mb-3">B. 식욕 문제 (식욕이 없거나, 너무 많이 먹음)</p>
+                                <div id="q3_symptoms_b" class="radio-group text-base">
+                                    <label><input type="radio" name="q3_symptoms_b" value="0" required> <span>전혀(0)</span></label>
+                                    <label><input type="radio" name="q3_symptoms_b" value="1"> <span>며칠(1)</span></label>
+                                    <label><input type="radio" name="q3_symptoms_b" value="2"> <span>절반(2)</span></label>
+                                    <label><input type="radio" name="q3_symptoms_b" value="3"> <span>매일(3)</span></label>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="font-semibold text-lg mb-3">C. 기운이 없거나 쉽게 피로함</p>
+                                <div id="q3_symptoms_c" class="radio-group text-base">
+                                    <label><input type="radio" name="q3_symptoms_c" value="0" required> <span>전혀(0)</span></label>
+                                    <label><input type="radio" name="q3_symptoms_c" value="1"> <span>며칠(1)</span></label>
+                                    <label><input type="radio" name="q3_symptoms_c" value="2"> <span>절반(2)</span></label>
+                                    <label><input type="radio" name="q3_symptoms_c" value="3"> <span>매일(3)</span></label>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="font-semibold text-lg mb-3">D. 일(또는 공부, 일상)에 집중하기 어려움</p>
+                                <div id="q3_symptoms_d" class="radio-group text-base">
+                                    <label><input type="radio" name="q3_symptoms_d" value="0" required> <span>전혀(0)</span></label>
+                                    <label><input type="radio" name="q3_symptoms_d" value="1"> <span>며칠(1)</span></label>
+                                    <label><input type="radio" name="q3_symptoms_d" value="2"> <span>절반(2)</span></label>
+                                    <label><input type="radio" name="q3_symptoms_d" value="3"> <span>매일(3)</span></label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Q4: 악화/완화 요인 -->
+                    <div class="question-card">
+                        <label for="q4_context" class="question-title">4. 이러한 불편함이 언제(예: 아침/저녁)에 더 심해지나요? 혹은 어떤 상황(예: 혼자 있을 때, 사람 만날 때)에서 더 심해지거나 완화되나요?</label>
+                        <textarea id="q4_context" name="q4_context" rows="3" class="mt-1 block w-full px-4 py-3 border-2 border-gray-300 rounded-md shadow-sm text-base focus:border-blue-500 focus:ring-blue-500"></textarea>
+                    </div>
+
+                    <!-- Q5: 사고 패턴 -->
+                    <div class="question-card">
+                        <label for="q5_cognition" class="question-title">5. 요즘 환자님을 가장 많이 괴롭히는 반복적인 생각이나 걱정이 있다면 적어주세요.</label>
+                        <textarea id="q5_cognition" name="q5_cognition" rows="3" class="mt-1 block w-full px-4 py-3 border-2 border-gray-300 rounded-md shadow-sm text-base focus:border-blue-500 focus:ring-blue-500"></textarea>
+                        <p class="guide-text">예: '나는 실패했다'는 생각, '미래에 나쁜 일이 생길 것 같다'는 걱정 등</p>
+                    </div>
+                    
+                    <!-- Q6: 행동 변화 -->
+                    <div class="question-card">
+                        <label for="q6_behavior" class="question-title">6. 증상이 생긴 후, 최근에 피하게 된 활동이나 반대로 더 많이 하게 된 행동(예: 음주, 게임, 쇼핑 등)이 있다면 적어주세요.</label>
+                        <textarea id="q6_behavior" name="q6_behavior" rows="3" class="mt-1 block w-full px-4 py-3 border-2 border-gray-300 rounded-md shadow-sm text-base focus:border-blue-500 focus:ring-blue-500"></textarea>
+                    </div>
+
+                    <!-- Q7: 일상 기능 저하 -->
+                    <div class="question-card">
+                        <p class="question-title">7. 위의 문제들이 환자님의 일상 생활(업무, 학업, 대인관계 등)에 얼마나 영향을 주고 있나요?</p>
+                        <div id="q7_impact">
+                            <label class="question-label flex items-center"><input type="radio" name="q7_impact" value="0" required> <span>전혀 영향 없음</span></label>
+                            <label class="question-label flex items-center"><input type="radio" name="q7_impact" value="1"> <span>조금 영향 있음</span></label>
+                            <label class="question-label flex items-center"><input type="radio" name="q7_impact" value="2"> <span>보통</span></label>
+                            <label class="question-label flex items-center"><input type="radio" name="q7_impact" value="3"> <span>많이 영향 있음</span></label>
+                            <label class="question-label flex items-center"><input type="radio" name="q7_impact" value="4"> <span>매우 심각함</span></label>
+                        </div>
+                    </div>
+
+                    <!-- Q8: 안전 문제 -->
+                    <div class="question-card border-red-300 border-2">
+                        <p class="question-title text-red-700">8. [중요] 최근 2주간, '차라리 죽는 것이 낫겠다'고 생각하거나, 자신을 해치고 싶은 생각이 든 적이 있나요?</p>
+                        <div id="q8_safety">
+                            <label class="question-label flex items-center"><input type="radio" name="q8_safety" value="0" required> <span>아니오, 전혀 없습니다.</span></label>
+                            <label class="question-label flex items-center"><input type="radio" name="q8_safety" value="1"> <span>네, 며칠 정도 그런 생각이 들었습니다.</span></label>
+                            <label class="question-label flex items-center"><input type="radio" name="q8_safety" value="2"> <span>네, 자주 그런 생각이 들었습니다.</span></label>
+                        </div>
+                    </div>
+
+                    <!-- Q9: 환자의 인식 -->
+                    <div class="question-card">
+                        <label for="q9_cause" class="question-title">9. 환자님 본인은, 지금 겪는 이 어려움의 가장 큰 원인이 무엇이라고 생각하시나요?</label>
+                        <textarea id="q9_cause" name="q9_cause" rows="3" class="mt-1 block w-full px-4 py-3 border-2 border-gray-300 rounded-md shadow-sm text-base focus:border-blue-500 focus:ring-blue-500"></textarea>
+                    </div>
+
+                    <!-- Q10: 환자의 목표 -->
+                    <div class="question-card">
+                        <label for="q10_goals" class="question-title">10. 마지막으로, 의사 선생님께 꼭 하고 싶었지만 잊어버릴까 봐 걱정되는 질문이나, 진료를 통해 가장 바라시는 점이 있다면 자유롭게 적어주세요.</label>
+                        <textarea id="q10_goals" name="q10_goals" rows="4" class="mt-1 block w-full px-4 py-3 border-2 border-gray-300 rounded-md shadow-sm text-base focus:border-blue-500 focus:ring-blue-500"></textarea>
+                        <p class="guide-text">예: 제가 왜 이런지 궁금해요, 약물 부작용이 걱정돼요, 그냥 제 이야기를 들어주셨으면 좋겠어요 등</p>
+                    </div>
+
+                    <!-- 제출 버튼 -->
+                    <button id="submitButton" type="submit" class="w-full bg-green-600 text-white py-4 px-6 rounded-lg text-xl font-semibold hover:bg-green-700 transition mt-6">
+                        문진표 제출하기
+                    </button>
+                    <p id="questionnaireError" class="mt-4 text-center text-base text-red-600"></p>
+                </form>
+            </div>
+
+            <!-- 4. 제출 완료 화면 -->
+            <div id="completionPage" class="page-section max-w-2xl mx-auto mt-20">
+                <div class="bg-white p-12 rounded-lg shadow-xl text-center border border-gray-200">
+                    <svg class="w-20 h-20 text-green-500 mx-auto mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <h1 class="text-4xl font-bold mb-4 text-gray-800">제출 완료</h1>
+                    <p class="text-xl text-gray-600">문진표가 안전하게 제출되었습니다.
+                        <br>
+                        작성하신 태블릿을 데스크에 반납해 주시고, 잠시만 기다려주세요.</p>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Firebase 모듈 임포트
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+        import { 
+            getFirestore, 
+            setLogLevel,
+            collection,
+            onSnapshot,
+            query,
+            where,
+            doc,
+            updateDoc
+        } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+
+        // doctor.html과 동일한 Firebase 설정
+        const firebaseConfig = {
+            apiKey: "AIzaSyAcxnduVJ5MpaUOzGmG1DmbUJKuUr5Uhzo",
+            authDomain: "doctor-cba8a.firebaseapp.com",
+            projectId: "doctor-cba8a",
+            storageBucket: "doctor-cba8a.firebasestorage.app",
+            messagingSenderId: "899440797117",
+            appId: "1:899440797117:web:78a9f0f9b6a91b2d5b5ed4",
+            measurementId: "G-1FZFF5S0FW"
+        };
+        
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-symptom-tracker';
+
+        // Firebase 앱 초기화
+        let app, db;
+        let waitingListUnsubscribe = null; 
+        let waitingListRef;
+        let selectedPatient = null; 
+
+        // DOM 요소
+        const welcomePage = document.getElementById('welcomePage');
+        const patientVerifyPage = document.getElementById('patientVerifyPage');
+        const questionnairePage = document.getElementById('questionnairePage');
+        const completionPage = document.getElementById('completionPage');
+        const patientListSidebar = document.getElementById('patientListSidebar');
+        const patientLoadingMessage = document.getElementById('patientLoadingMessage');
+        const patientNameDisplay = document.getElementById('patientNameDisplay');
+        
+        // 본인 확인 DOM
+        const verifyForm = document.getElementById('verifyForm');
+        const verifyBackButton = document.getElementById('verifyBackButton');
+        const verifyPatientName = document.getElementById('verifyPatientName');
+        const birthdateVerifyInput = document.getElementById('birthdateVerifyInput');
+        const verifyError = document.getElementById('verifyError');
+        
+        // 문진표 폼 DOM
+        const questionnaireForm = document.getElementById('questionnaireForm');
+        const questionnaireError = document.getElementById('questionnaireError');
+
+        /**
+         * 화면(섹션)을 전환합니다.
+         */
+        function showPage(pageId) {
+            document.querySelectorAll('.page-section').forEach(page => page.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+        }
+
+        /**
+         * '대기중' 및 '작성중'인 환자 목록을 사이드바에 렌더링합니다.
+         */
+        const renderPatientList = (patients) => {
+            const loadingMsg = document.getElementById('patientLoadingMessage');
+            if (loadingMsg) loadingMsg.remove();
+            patientListSidebar.innerHTML = ""; 
+            
+            if (patients.length === 0) {
+                patientListSidebar.innerHTML = '<p class="text-gray-400 text-sm p-2">등록된 대기 환자가 없습니다.</p>';
+                return;
+            }
+
+            patients.forEach(patient => {
+                const patientLink = document.createElement('a'); 
+                patientLink.className = 'sidebar-patient-link'; 
+                
+                patientLink.textContent = `${patient.name}`; // 생년월일 제거
+                patientLink.dataset.id = patient.id;
+                
+                if (selectedPatient && selectedPatient.id === patient.id) {
+                    patientLink.classList.add('selected');
+                }
+
+                patientLink.onclick = () => {
+                    document.querySelectorAll('.sidebar-patient-link').forEach(link => link.classList.remove('selected'));
+                    patientLink.classList.add('selected');
+                    promptForVerification(patient);
+                };
+                patientListSidebar.appendChild(patientLink);
+            });
+        }
+
+        /**
+         * 본인 확인 화면을 띄웁니다.
+         */
+        const promptForVerification = (patient) => {
+            selectedPatient = patient; 
+            verifyPatientName.textContent = patient.name; 
+            verifyError.textContent = ""; 
+            birthdateVerifyInput.value = ""; 
+            showPage('patientVerifyPage'); 
+            birthdateVerifyInput.focus(); 
+        }
+
+        /**
+         * 본인 확인 처리를 합니다.
+         */
+        const handleVerification = async (event) => {
+            event.preventDefault();
+            verifyError.textContent = ""; 
+
+            const enteredBirthdate = birthdateVerifyInput.value;
+            const correctBirthdate = selectedPatient.birthdate;
+
+            if (enteredBirthdate === correctBirthdate) {
+                await startQuestionnaire(selectedPatient);
+            } else {
+                verifyError.textContent = "생년월일이 일치하지 않습니다. 다시 입력해주세요.";
+                birthdateVerifyInput.value = ""; 
+                birthdateVerifyInput.focus();
+            }
+        }
+
+        /**
+         * 환자가 문진을 시작합니다.
+         */
+        const startQuestionnaire = async (patient) => {
+            console.log("Patient verified:", patient.id, patient.name);
+            patientNameDisplay.textContent = patient.name; 
+
+            try {
+                // 1. DB 상태 'writing'(작성중)으로 변경
+                const patientDocRef = doc(db, "artifacts", appId, "public", "data", "waiting_list", patient.id);
+                await updateDoc(patientDocRef, {
+                    status: "writing"
+                });
+                
+                // 2. 문진표 작성 화면으로 전환
+                showPage('questionnairePage');
+                
+                // 3. 문진표 제출 이벤트 연결
+                questionnaireForm.removeEventListener('submit', handleSubmitQuestionnaire);
+                questionnaireForm.addEventListener('submit', handleSubmitQuestionnaire);
+
+            } catch (error) {
+                console.error("Error updating patient status:", error);
+                verifyError.textContent = "환자 정보를 업데이트하는 데 실패했습니다.";
+            }
+        }
+
+        /**
+         * [수정] 문진표 제출 처리 (10개 항목)
+         */
+        const handleSubmitQuestionnaire = async (event) => {
+            event.preventDefault();
+            questionnaireError.textContent = "";
+
+            const formData = new FormData(questionnaireForm);
+            
+            const emotions = [];
+            formData.getAll('q2_emotions').forEach(emotion => {
+                emotions.push(emotion);
+            });
+
+            // [수정] 10개 항목 데이터 수집
+            const questionnaireData = {
+                q1_main_complaint: formData.get('q1_main_complaint'),
+                q2_emotions: emotions,
+                q3_symptoms_a: formData.get('q3_symptoms_a'),
+                q3_symptoms_b: formData.get('q3_symptoms_b'),
+                q3_symptoms_c: formData.get('q3_symptoms_c'),
+                q3_symptoms_d: formData.get('q3_symptoms_d'),
+                q4_context: formData.get('q4_context'),
+                q5_cognition: formData.get('q5_cognition'),
+                q6_behavior: formData.get('q6_behavior'),
+                q7_impact: formData.get('q7_impact'),
+                q8_safety: formData.get('q8_safety'),
+                q9_cause: formData.get('q9_cause'),
+                q10_goals: formData.get('q10_goals'),
+                submittedAt: new Date()
+            };
+
+            // [수정] 필수 항목 검증 (Q3, Q7, Q8)
+            if (!questionnaireData.q3_symptoms_a || !questionnaireData.q3_symptoms_b || 
+                !questionnaireData.q3_symptoms_c || !questionnaireData.q3_symptoms_d || 
+                !questionnaireData.q7_impact || !questionnaireData.q8_safety) {
+                questionnaireError.textContent = "3번, 7번, 8번 항목은 필수 답변입니다.";
+                document.getElementById('q3_symptoms_a').scrollIntoView(); 
+                return;
+            }
+
+            console.log("Submitting questionnaire:", questionnaireData);
+
+            try {
+                // DB 업데이트
+                const patientDocRef = doc(db, "artifacts", appId, "public", "data", "waiting_list", selectedPatient.id);
+                await updateDoc(patientDocRef, {
+                    status: "completed",
+                    questionnaireData: questionnaireData // 수집한 새 데이터 객체 저장
+                });
+
+                // 완료 화면 표시
+                showPage('completionPage');
+                
+                // 리스너 재시작
+                setupPatientListListener();
+                selectedPatient = null; // 선택 해제
+
+            } catch (error) {
+                console.error("Error submitting questionnaire:", error);
+                questionnaireError.textContent = "제출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+            }
+        };
+
+        /**
+         * 실시간 대기자 명단 리스너 설정
+         */
+        const setupPatientListListener = () => {
+            if (waitingListUnsubscribe) waitingListUnsubscribe(); 
+
+            // [수정] 'waiting' 또는 'writing'인 환자만 쿼리
+            const q = query(waitingListRef, where("status", "in", ["waiting", "writing"]));
+            
+            console.log("Setting up patient list listener (status in [waiting, writing])...");
+
+            waitingListUnsubscribe = onSnapshot(q, (querySnapshot) => {
+                const patients = [];
+                querySnapshot.forEach((doc) => {
+                    patients.push({ id: doc.id, ...doc.data() });
+                });
+                console.log("Waiting patients updated:", patients);
+                renderPatientList(patients); 
+            }, (error) => {
+                console.error("Error listening to patient list:", error);
+                const loadingMsg = document.getElementById('patientLoadingMessage');
+                if(loadingMsg) loadingMsg.innerHTML = '<p class="text-red-500 text-sm p-2">대기자 명단을<br>불러오지 못했습니다.</p>';
+            });
+        }
+
+        // --- Firebase 초기화 ---
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            setLogLevel('Debug');
+            console.log("Firebase initialized successfully on Patient page.");
+
+            waitingListRef = collection(db, "artifacts", appId, "public", "data", "waiting_list");
+
+            setupPatientListListener();
+
+            // 기본 화면을 '환영' 페이지로
+            showPage('welcomePage');
+
+            // 이벤트 리스너 연결
+            verifyForm.addEventListener('submit', handleVerification);
+            verifyBackButton.addEventListener('click', () => {
+                showPage('welcomePage'); // 환영 페이지로 복귀
+                selectedPatient = null; // 환자 선택 취소
+                document.querySelectorAll('.sidebar-patient-link').forEach(link => link.classList.remove('selected'));
+            });
+
+        } catch (e) {
+            console.error("Firebase initialization error:", e);
+            const loadingMsg = document.getElementById('patientLoadingMessage');
+            if (loadingMsg) {
+                loadingMsg.textContent = "시스템 초기화에 실패했습니다.";
+                loadingMsg.classList.add("text-red-500");
+            }
+        }
+    </script>
+</body>
+</html>

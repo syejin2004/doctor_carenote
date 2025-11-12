@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>의사 페이지 - 케어노트 (CareNote)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- [신규] Chart.js CDN 추가 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: "Inter", sans-serif; }
+        .page-section { 
+            display: none; 
+            width: 100%;
+            height: 100vh;
+        }
+        .page-section.auth {
+            align-items: center;
+            justify-content: center;
+            background-color: #f9fafb; /* gray-50 */
+        }
+        .auth-form { display: none; }
+        .auth-form.active { display: block; }
+        
+        /* 모달 스타일 */
+        .modal {
+            display: none; /* 기본 숨김 */
+            position: fixed;
+            z-index: 50;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5); /* 반투명 배경 */
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active {
+            display: flex; /* 보일 때 */
+        }
+        /* 리포트 모달은 더 크게 */
+        .modal-content-report {
+            background-color: #f9fafb;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            width: 100%;
+            max-width: 48rem; /* 768px */
+            max-height: 90vh; 
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* 환자 카드 스타일 */
+        .patient-card {
+            border-radius: 0.75rem; /* rounded-lg */
+            background-color: #ffffff;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); /* shadow-md */
+            padding: 1rem 1.5rem; /* p-4에서 p-6으로 */
+            margin-bottom: 0.75rem; /* mb-3 */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        /* 작성 완료된 카드는 클릭 가능하게 */
+        .patient-card.report-view-button {
+             border: 1px solid transparent;
+        }
+        .patient-card.report-view-button:hover {
+            background-color: #eff6ff; /* blue-50 */
+            border-color: #3b82f6; /* blue-500 */
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-md */
+        }
+        
+        .patient-status {
+            font-size: 0.875rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-weight: 600; 
+        }
+        .status-waiting { background-color: #fef9c3; color: #a16207; } /* yellow-100 / yellow-700 */
+        .status-writing { background-color: #dbeafe; color: #1d4ed8; } /* blue-100 / blue-700 */
+        .status-completed { background-color: #d1fae5; color: #065f46; } /* green-100 / green-700 */
+
+        /* 삭제 버튼 스타일 */
+        .delete-patient-button {
+            font-size: 1.5rem;
+            font-weight: bold;
+            line-height: 1;
+            padding: 0 0.5rem;
+            border-radius: 50%;
+            background-color: transparent;
+            color: #9ca3af; /* gray-400 */
+            cursor: pointer;
+            z-index: 10; 
+            position: relative;
+        }
+        .delete-patient-button:hover {
+            background-color: #fee2e2; /* red-100 */
+            color: #b91c1c; /* red-700 */
+        }
+
+        /* 리포트 내용 스타일 */
+        #reportContent {
+            background: #ffffff;
+            border-radius: 0.5rem;
+            padding: 1.5rem 2rem; 
+            overflow-y: auto; 
+            flex-grow: 1;
+        }
+        .report-section {
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 1rem;
+        }
+        .report-q {
+            font-size: 1.125rem; 
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 0.75rem; 
+        }
+        .report-a {
+            font-size: 1rem; 
+            color: #374151;
+            white-space: pre-wrap; 
+            line-height: 1.6; 
+        }
+        .report-a-chip {
+            display: inline-block;
+            background-color: #e0e7ff;
+            color: #3730a3;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            margin-right: 0.5rem;
+        }
+        /* AI 요약 섹션 강조 */
+        .ai-summary-card {
+            background-color: #f3e8ff; /* purple-50 */
+            border: 1px solid #d8b4fe; /* purple-300 */
+            border-radius: 0.5rem;
+            padding: 1rem 1.5rem;
+        }
+        .ai-summary-card h3 {
+            font-size: 1.25rem; 
+            font-weight: 700;
+            color: #581c87; /* purple-900 */
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+        }
+        .ai-summary-card p {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: #374151; /* gray-700 */
+        }
+        
+        /* [신규] 감정/키워드 태그 스타일 */
+        .sentiment-badge {
+            display: inline-block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            background-color: #fecaca; /* red-200 */
+            color: #991b1b; /* red-800 */
+            margin-right: 0.75rem;
+        }
+        .ai-tag {
+            display: inline-block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            background-color: #e5e7eb; /* gray-200 */
+            color: #374151; /* gray-700 */
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* AI 로딩 스피너 */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6; /* blue-500 */
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+    </style>
+</head>
+<body class="bg-gray-100 h-screen">
+
+    <!-- 1. 인증 컨테이너 (로그인/회원가입) -->
+    <div id="authContainer" class="page-section auth">
+        <div class="bg-white p-10 rounded-lg shadow-xl w-full max-w-md">
+            <!-- 로그인 폼 -->
+            <div id="doctorLoginPage" class="auth-form active">
+                <a href="index.html" class="text-sm text-blue-600 hover:underline mb-4 inline-block">&larr; 메인으로</a>
+                <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">의료진 로그인</h2>
+                <form id="loginForm">
+                    <div class="mb-4">
+                        <label for="loginEmail" class="block text-sm font-medium text-gray-700">이메일</label>
+                        <input type="email" id="loginEmail" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div class="mb-6">
+                        <label for="loginPassword" class="block text-sm font-medium text-gray-700">비밀번호</label>
+                        <input type="password" id="loginPassword" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all">
+                        로그인
+                    </button>
+                    <p class="mt-6 text-center text-sm text-gray-600">
+                        계정이 없으신가요? 
+                        <button type="button" id="showSignupButton" class="text-blue-600 hover:underline font-medium">
+                            회원가입
+                        </button>
+                    </p>
+                </form>
+            </div>
+            <!-- 회원가입 폼 -->
+            <div id="doctorSignupPage" class="auth-form">
+                <a href="index.html" class="text-sm text-blue-600 hover:underline mb-4 inline-block">&larr; 메인으로</a>
+                <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">의사 회원가입</h2>
+                <form id="signupForm">
+                    <div class="mb-4">
+                        <label for="signupName" class="block text-sm font-medium text-gray-700">이름</label>
+                        <input type="text" id="signupName" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="signupLicense" class="block text-sm font-medium text-gray-700">의사 면허번호</label>
+                        <input type="text" id="signupLicense" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="signupEmail" class="block text-sm font-medium text-gray-700">이메일</label>
+                        <input type="email" id="signupEmail" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required>
+                    </div>
+                    <div class="mb-6">
+                        <label for="signupPassword" class="block text-sm font-medium text-gray-700">비밀번호</label>
+                        <input type="password" id="signupPassword" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required>
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all">
+                        회원가입
+                    </button>
+                    <p class="mt-6 text-center text-sm text-gray-600">
+                        계정이 이미 있으신가요? 
+                        <button type="button" id="showLoginButton" class="text-blue-600 hover:underline font-medium">
+                            로그인
+                        </button>
+                    </p>
+                </form>
+            </div>
+            <p id="authError" class="mt-4 text-center text-sm text-red-600"></p>
+        </div>
+    </div>
+
+    <!-- 2. 의사 대시보드 페이지 (로그인 후) -->
+    <div id="doctorDashboardPage" class="page-section dashboard">
+        <!-- [수정] 사이드바 디자인 (Light Theme) -->
+        <aside class="w-72 bg-white text-gray-900 h-full p-6 flex flex-col border-r border-gray-200">
+            <h2 class="text-3xl font-bold text-blue-600 mb-8 flex items-center gap-2">
+                <!-- [수정] 새 로고 -->
+                <svg class="w-8 h-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10.5 3.75a.75.75 0 0 1 .75.75v.75h.75a.75.75 0 0 1 0 1.5h-.75v.75a.75.75 0 0 1-1.5 0v-.75h-.75a.75.75 0 0 1 0-1.5h.75v-.75a.75.75 0 0 1 .75-.75ZM13.5 3.75a.75.75 0 0 0-1.5 0v.75h-.75a.75.75 0 0 0 0 1.5h.75v.75a.75.75 0 0 0 1.5 0v-.75h.75a.75.75 0 0 0 0-1.5h-.75v-.75Z" clip-rule="evenodd" />
+                    <path fill-rule="evenodd" d="M3 5.25a3 3 0 0 1 3-3h3.75a.75.75 0 0 1 0 1.5H6a1.5 1.5 0 0 0-1.5 1.5v13.5a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-3.75a.75.75 0 0 1 1.5 0V19.5a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V5.25Zm15.53 1.47a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-2.25-2.25a.75.75 0 1 1 1.06-1.06l1.72 1.72 3.97-3.97a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
+                </svg>
+                케어노트 (CareNote)
+            </h2>
+            
+            <p class="text-sm font-medium text-gray-500 mb-2">관리자 메뉴</p>
+            <nav class="flex-1">
+                <ul>
+                    <li class="rounded-md bg-blue-50">
+                        <a href="#" class="flex items-center gap-3 py-3 px-4 rounded-md text-blue-700 font-semibold">
+                            <!-- 아이콘 -->
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M10 3.75a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM10 8.75a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0v-5.5A.75.75 0 0 1 10 8.75Z" /><path fill-rule="evenodd" d="M10 1.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17ZM1.5 10a8.5 8.5 0 1 1 17 0 8.5 8.5 0 0 1-17 0Z" clip-rule="evenodd" /></svg>
+                            대기자 명단
+                        </a>
+                    </li>
+                    <li class="rounded-md mt-2">
+                        <a href="patient.html" target="_blank" class="flex items-center gap-3 py-3 px-4 rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 font-medium transition-all">
+                            <!-- 아이콘 -->
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M10 2.5a.75.75 0 0 1 .75.75v.755a3.75 3.75 0 0 1 2.243 2.243h.755a.75.75 0 0 1 0 1.5h-.755a3.75 3.75 0 0 1-2.243 2.243v.755a.75.75 0 0 1-1.5 0v-.755a3.75 3.75 0 0 1-2.243-2.243h-.755a.75.75 0 0 1 0-1.5h.755A3.75 3.75 0 0 1 8.5 4.005V3.25A.75.75 0 0 1 10 2.5ZM10 6.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" /><path d="M3.75 12.25a.75.75 0 0 1 .75.75v1.61c0 .44.32 1.013.78 1.473l.26.261a.75.75 0 0 1-1.06 1.06l-.261-.26a2.498 2.498 0 0 0-1.77-1.77l-.26-.26a.75.75 0 0 1 1.06-1.06l.26.26c.46.46 1.033.78 1.473.78h1.61a.75.75 0 0 1 .75.75v1.25a.75.75 0 0 1-1.5 0v-.5h-1.61c-.69 0-1.353-.28-1.84-.77l-.26-.26a.75.75 0 0 1 0-1.06l.26-.26C3.01 13.18 3 12.518 3 11.828V10.25a.75.75 0 0 1 1.5 0v1.61c0 .44-.32 1.013-.78 1.473l-.26.26a.75.75 0 0 1-1.06 1.06l.26.26c.49.49 1.15.77 1.84.77h1.61v.5a.75.75 0 0 1-1.5 0v-1.25a.75.75 0 0 1 .75-.75Z" /></svg>
+                            환자 페이지 (확인용)
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <!-- [수정] 사용자 정보 (하단) -->
+            <div class="mt-auto border-t border-gray-200 pt-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                        <span id="doctorInitials"></span> <!-- 예: 홍길동 -> 홍 -->
+                    </div>
+                    <div>
+                        <p id="doctorInfoDisplay" class="text-base font-semibold text-gray-800"></p>
+                        <p id="doctorEmailDisplay" class="text-sm text-gray-500"></p>
+                    </div>
+                </div>
+                <button id="logoutButton" class="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-red-50 hover:text-red-600 transition mt-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clip-rule="evenodd" /><path fill-rule="evenodd" d="M19 10a.75.75 0 0 0-.75-.75H8.704l1.048-.943a.75.75 0 1 0-1.004-1.114l-2.5 2.25a.75.75 0 0 0 0 1.114l2.5 2.25a.75.75 0 1 0 1.004-1.114l-1.048-.943H18.25A.75.75 0 0 0 19 10Z" clip-rule="evenodd" /></svg>
+                    로그아웃
+                </button>
+            </div>
+        </aside>
+        
+        <!-- [수정] 메인 컨텐츠 (디자인 변경) -->
+        <main class="flex-1 p-10 bg-gray-50 overflow-y-auto"> <!-- [수정] 패딩, 배경색 -->
+            <div class="flex justify-between items-center mb-8">
+                <h1 class="text-4xl font-bold text-gray-800">대기자 명단</h1>
+                <button id="addPatientButton" class="bg-blue-600 text-white py-3 px-5 rounded-lg font-semibold hover:bg-blue-700 transition-all shadow-sm hover:shadow-md flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" /></svg>
+                    신규 환자 등록
+                </button>
+            </div>
+            <!-- [수정] 환자 목록 컨테이너 (그림자 제거, 카드 자체에 그림자) -->
+            <div id="waitingListContainer" class="rounded-lg">
+                <p id="loadingMessage" class="text-gray-500 text-center bg-white p-6 rounded-lg shadow-md">환자 목록을 불러오는 중...</p>
+                <!-- JavaScript에 의해 이 내용이 채워집니다 (patient-card) -->
+            </div>
+        </main>
+    </div>
+
+    <!-- [수정] 환자 등록 모달 (디자인 변경) -->
+    <div id="patientModal" class="modal">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">신규 환자 등록</h2>
+            <form id="addPatientForm">
+                <div class="mb-4">
+                    <label for="patientNameInput" class="block text-sm font-medium text-gray-700">환자 이름</label>
+                    <input type="text" id="patientNameInput" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm" required>
+                </div>
+                <div class="mb-6">
+                    <label for="patientBirthdateInput" class="block text-sm font-medium text-gray-700">생년월일 (예: 990101)</label>
+                    <input type="text" id="patientBirthdateInput" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm" placeholder="YYMMDD" required>
+                </div>
+                <div class="flex justify-end gap-4 mt-8">
+                    <button type="button" id="closeModalButton" class="bg-gray-200 text-gray-800 py-2 px-5 rounded-lg font-semibold hover:bg-gray-300 transition-all">
+                        취소
+                    </button>
+                    <button type="submit" class="bg-blue-600 text-white py-2 px-5 rounded-lg font-semibold hover:bg-blue-700 transition-all">
+                        등록
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- [수정] 스마트 리포트 모달 (차트, 감정, 키워드 영역 추가) -->
+    <div id="reportModal" class="modal">
+        <div class="modal-content-report">
+            <!-- 모달 헤더 -->
+            <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-800">AI 스마트 리포트</h2>
+                <button id="closeReportModalButton" class="text-3xl font-bold text-gray-400 hover:text-gray-700 transition-all">&times;</button>
+            </div>
+            
+            <!-- 모달 본문 (내용이 채워질 곳) -->
+            <div id="reportContent">
+                <!-- AI 요약 로딩 영역 -->
+                <div id="report-loading-spinner" class="text-center p-4">
+                    <div class="loader"></div>
+                    <p class="text-lg font-medium text-blue-600">AI 스마트 리포트를 생성 중입니다...</p>
+                    <p class="text-gray-500">잠시만 기다려주세요.</p>
+                </div>
+                <!-- 
+                    displayReportData 함수가 이 곳을
+                    AI 요약, 차트, 원본 데이터로 채웁니다.
+                -->
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Firebase SDK (v12.5.0) -->
+    <script type="module">
+        // Firebase 모듈 임포트
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+        // [삭제] getAnalytics
+        import { 
+            getAuth, 
+            onAuthStateChanged,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            setDoc,
+            getDoc,
+            deleteDoc,
+            setLogLevel,
+            collection,
+            addDoc,
+            onSnapshot,
+            query,
+            orderBy
+        } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+
+        // (firebaseConfig, appId는 이전과 동일)
+        const firebaseConfig = {
+            apiKey: "AIzaSyAcxnduVJ5MpaUOzGmG1DmbUJKuUr5Uhzo",
+            authDomain: "doctor-cba8a.firebaseapp.com",
+            projectId: "doctor-cba8a",
+            storageBucket: "doctor-cba8a.firebasestorage.app",
+            messagingSenderId: "899440797117",
+            appId: "1:899440797117:web:78a9f0f9b6a91b2d5b5ed4",
+            measurementId: "G-1FZFF5S0FW"
+        };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-symptom-tracker';
+
+        // Firebase 앱 초기화
+        let app, auth, db;
+        let waitingListUnsubscribe = null;
+        let currentChart = null; // [신규] 차트 인스턴스 저장용
+        
+        // (DOM 요소 변수들은 이전과 동일)
+        const authContainer = document.getElementById('authContainer');
+        const dashboardPage = document.getElementById('doctorDashboardPage');
+        const authError = document.getElementById('authError');
+        const doctorInfoDisplay = document.getElementById('doctorInfoDisplay');
+        const doctorEmailDisplay = document.getElementById('doctorEmailDisplay');
+        const doctorInitials = document.getElementById('doctorInitials');
+        const loginForm = document.getElementById('loginForm');
+        const signupForm = document.getElementById('signupForm');
+        const showSignupButton = document.getElementById('showSignupButton');
+        const showLoginButton = document.getElementById('showLoginButton');
+        const logoutButton = document.getElementById('logoutButton');
+        const patientModal = document.getElementById('patientModal');
+        const addPatientButton = document.getElementById('addPatientButton');
+        const closeModalButton = document.getElementById('closeModalButton');
+        const addPatientForm = document.getElementById('addPatientForm');
+        const reportModal = document.getElementById('reportModal');
+        const reportContent = document.getElementById('reportContent');
+        const closeReportModalButton = document.getElementById('closeReportModalButton');
+        const waitingListContainer = document.getElementById('waitingListContainer');
+
+        // (폼 토글, 모달 열기/닫기, 상태 칩 함수는 이전과 동일)
+        const toggleAuthForm = (formIdToShow) => {
+            document.querySelectorAll('.auth-form').forEach(form => form.classList.remove('active'));
+            document.getElementById(formIdToShow).classList.add('active');
+            authError.textContent = ""; 
+        }
+        const openPatientModal = () => patientModal.classList.add('active');
+        const closePatientModal = () => {
+            patientModal.classList.remove('active');
+            addPatientForm.reset();
+        }
+        const openReportModal = () => reportModal.classList.add('active');
+        const closeReportModal = () => {
+            reportModal.classList.remove('active');
+            // [수정] 모달 닫을 때 차트 파괴
+            if (currentChart) {
+                currentChart.destroy();
+                currentChart = null;
+            }
+            reportContent.innerHTML = `
+                <div id="report-loading-spinner" class="text-center p-4">
+                    <div class="loader"></div>
+                    <p class="text-lg font-medium text-blue-600">AI 스마트 리포트를 생성 중입니다...</p>
+                    <p class="text-gray-500">잠시만 기다려주세요.</p>
+                </div>`;
+        }
+        const getStatusChip = (status) => {
+            switch (status) {
+                case 'writing': return '<span class="patient-status status-writing">작성 중</span>';
+                case 'completed': return '<span class="patient-status status-completed">작성 완료</span>';
+                default: return '<span class="patient-status status-waiting">대기 중</span>';
+            }
+        }
+        
+        /**
+         * [수정] 10개 문항에 맞게 척도형 답변을 텍스트로 변환
+         */
+        const mapScaleResponse = (qName, value) => {
+            const scale3 = { '0': '전혀(0)', '1': '며칠(1)', '2': '절반(2)', '3': '매일(3)' };
+            const scale5 = { '0': '전혀 영향 없음', '1': '조금 영향 있음', '2': '보통', '3': '많이 영향 있음', '4': '매우 심각함' };
+            const scaleSafety = { '0': '아니오, 전혀 없습니다.', '1': '네, 며칠 정도', '2': '네, 자주' };
+
+            if (!value) return '(무응답)';
+            if (qName.startsWith('q3')) return scale3[value] || value;
+            if (qName === 'q7_impact') return scale5[value] || value; // [수정] Q7
+            if (qName === 'q8_safety') return scaleSafety[value] || value; // [수정] Q8
+            return value;
+        }
+
+        /**
+         * [수정] 백엔드 서버에 AI 요약을 요청하는 함수
+         */
+        const generateAISummary = async (questionnaireData) => {
+            // [수정] 우리 백엔드 서버의 주소
+            const backendUrl = "http://localhost:3000/summarize";
+
+            try {
+                // 1. 우리 서버로 환자 데이터를 전송
+                const response = await fetch(backendUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ questionnaireData: questionnaireData })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || "백엔드 서버에서 오류가 발생했습니다.");
+                }
+
+                // 2. [수정] 서버가 AI 요약을 완료하고 보내준 "JSON 객체"를 받음
+                const result = await response.json();
+                return result; // { summary: "...", sentiment: "...", keywords: [...] }
+
+            } catch (error) {
+                console.error("Error fetching summary from backend:", error);
+                // (예: server.js를 켜는 것을 잊었을 때 "Failed to fetch" 오류 발생)
+                // [수정] JSON 형식이 깨졌을 때를 대비한 예외 처리
+                return {
+                    summary: `AI 요약 생성 중 오류: ${error.message}. (백엔드 서버가 실행 중인지 확인하세요.)`,
+                    sentiment: "오류",
+                    keywords: ["Error"]
+                };
+            }
+        };
+
+
+        /**
+         * [신규] 환자 증상 차트 렌더링 (기능 2)
+         */
+        const renderPatientChart = (qData) => {
+            const ctx = document.getElementById('patientChart');
+            if (!ctx) return; // 캔버스가 없으면 종료
+
+            // 기존 차트가 있으면 파괴 (중복 생성 방지)
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            // 척도형 데이터 추출 (0~3점 척도와 0~4점 척도가 있음)
+            const data = {
+                labels: ['수면 문제 (Q3a)', '식욕 문제 (Q3b)', '피로감 (Q3c)', '집중력 저하 (Q3d)', '일상 기능 저하 (Q7)'],
+                datasets: [{
+                    label: '증상 심각도 (높을수록 심각)',
+                    // Q3(0~3점)은 1.33을 곱해 0~4점 척도로 변환
+                    data: [
+                        (parseInt(qData.q3_symptoms_a || 0) * 4 / 3),
+                        (parseInt(qData.q3_symptoms_b || 0) * 4 / 3),
+                        (parseInt(qData.q3_symptoms_c || 0) * 4 / 3),
+                        (parseInt(qData.q3_symptoms_d || 0) * 4 / 3),
+                        parseInt(qData.q7_impact || 0)
+                    ],
+                    fill: true,
+                    backgroundColor: 'rgba(59, 130, 246, 0.2)', // blue-200
+                    borderColor: 'rgb(37, 99, 235)', // blue-700
+                    pointBackgroundColor: 'rgb(37, 99, 235)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgb(37, 99, 235)'
+                }]
+            };
+
+            currentChart = new Chart(ctx, {
+                type: 'radar', // 방사형 차트
+                data: data,
+                options: {
+                    responsive: true,
+                    scales: {
+                        r: {
+                            angleLines: { display: false },
+                            suggestedMin: 0,
+                            suggestedMax: 4, // 0~4점 척도
+                            pointLabels: {
+                                font: { size: 13, weight: '500' }
+                            },
+                            ticks: {
+                                backdropColor: 'white',
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+
+        /**
+         * [수정] 리포트 모달에 모든 AI 분석 결과와 차트 채우기
+         */
+        const displayReportData = (data, aiAnalysis) => {
+            const qData = data.questionnaireData; 
+            if (!qData) {
+                reportContent.innerHTML = "<p>문진표 데이터가 없습니다.</p>";
+                return;
+            }
+
+            // [수정] AI가 생성한 JSON 객체 사용
+            const aiSummaryText = aiAnalysis.summary;
+            const aiSentiment = aiAnalysis.sentiment;
+            const aiKeywords = aiAnalysis.keywords;
+
+            // AI 요약 섹션
+            const aiSummary = `
+                <div class="report-section ai-summary-card">
+                    <h3>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6 mr-2"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v2.5h-2.5a.75.75 0 0 0 0 1.5h2.5v2.5a.75.75 0 0 0 1.5 0v-2.5h2.5a.75.75 0 0 0 0-1.5h-2.5v-2.5Z" /><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm-6.75-8a6.75 6.75 0 1 1 13.5 0 6.75 6.75 0 0 1-13.5 0Z" clip-rule="evenodd" /></svg>
+                        AI 스마트 리포트
+                    </h3>
+                    <p class="report-a">${aiSummaryText}</p>
+                </div>
+            `;
+            
+            // [신규] 감정 및 키워드 섹션
+            const aiAnalysisSection = `
+                <div class="report-section grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="font-semibold text-gray-700 mb-2">핵심 감정</h4>
+                        <span class="sentiment-badge">${aiSentiment}</span>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-gray-700 mb-2">주요 키워드</h4>
+                        <div class="flex flex-wrap">
+                            ${aiKeywords.map(k => `<span class="ai-tag">#${k}</span>`).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // [신규] 증상 차트 섹션
+            const chartSection = `
+                <div class="report-section">
+                    <h3 class="text-xl font-bold mb-4">증상 대시보드</h3>
+                    <div class="w-full max-w-lg mx-auto">
+                        <canvas id="patientChart"></canvas>
+                    </div>
+                </div>
+            `;
+            
+            // 원본 답변 섹션 (10개 문항에 맞게 수정)
+            const rawData = `
+                <div class="report-section">
+                    <h3 class="text-xl font-bold mb-2">환자 정보</h3>
+                    <p><strong>이름:</strong> ${data.name} <strong>생년월일:</strong> ${data.birthdate}</p>
+                </div>
+                <div class="report-section">
+                    <p class="report-q">1. 주된 이유</p>
+                    <p class="report-a">${qData.q1_main_complaint || '(답변 없음)'}</p>
+                </div>
+                <div class="report-section">
+                    <p class="report-q">2. 최근 감정</p>
+                    <div class="report-a">
+                        ${qData.q2_emotions.length > 0 ? 
+                            qData.q2_emotions.map(e => `<span class="report-a-chip">${e}</span>`).join('') : 
+                            '(선택 없음)'}
+                    </div>
+                </div>
+                <div class="report-section">
+                    <p class="report-q">3. 주요 증상 (0:전혀 ~ 3:매일)</p>
+                    <ul class="report-a list-disc pl-5">
+                        <li>수면: ${mapScaleResponse('q3', qData.q3_symptoms_a)}</li>
+                        <li>식욕: ${mapScaleResponse('q3', qData.q3_symptoms_b)}</li>
+                        <li>피로: ${mapScaleResponse('q3', qData.q3_symptoms_c)}</li>
+                        <li>집중: ${mapScaleResponse('q3', qData.q3_symptoms_d)}</li>
+                    </ul>
+                </div>
+                <div class="report-section">
+                    <p class="report-q">4. 악화/완화 상황</p>
+                    <p class="report-a">${qData.q4_context || '(답변 없음)'}</p>
+                </div>
+                <div class="report-section">
+                    <p class="report-q">5. 반복적 사고</p>
+                    <p class="report-a">${qData.q5_cognition || '(답변 없음)'}</p>
+                </div>
+                <div class="report-section">
+                    <p class="report-q">6. 행동 변화</p>
+                    <p class="report-a">${qData.q6_behavior || '(답변 없음)'}</p>
+                </div>
+                <div class="report-section">
+                    <p class="report-q">7. 일상 기능 저하</p>
+                    <p class="report-a">${mapScaleResponse('q7_impact', qData.q7_impact)}</p>
+                </div>
+                <div class="report-section border-red-200">
+                    <p class="report-q text-red-700">8. [중요] 안전 문제</p>
+                    <p class="report-a font-bold text-red-700">${mapScaleResponse('q8_safety', qData.q8_safety)}</p>
+                </div>
+                <div class="report-section">
+                    <p class="report-q">9. 환자 생각 원인</p>
+                    <p class="report-a">${qData.q9_cause || '(답변 없음)'}</p>
+                </div>
+                <div class="report-section !border-b-0">
+                    <p class="report-q">10. 의사에게 바라는 점</p>
+                    <p class="report-a">${qData.q10_goals || '(답변 없음)'}</p>
+                </div>
+            `;
+
+            // [수정] 순서: 요약 -> 분석 -> 차트 -> 원본
+            reportContent.innerHTML = aiSummary + aiAnalysisSection + chartSection + rawData;
+
+            // [신규] HTML이 렌더링된 후 차트 그리기
+            // setTimeout을 주어 캔버스가 그려질 시간을 확보
+            setTimeout(() => {
+                renderPatientChart(qData);
+            }, 100); 
+        }
+
+        /**
+         * 환자 리포트 보기 처리 (AI 호출 로직)
+         */
+        const handleViewReport = async (patientId) => {
+            if (!patientId) return;
+            console.log("Viewing report for:", patientId);
+
+            // 1. 모달을 열고 로딩 상태 표시
+            closeReportModal(); // 내용 초기화 (로딩 스피너 보임)
+            openReportModal();
+
+            try {
+                // 2. 환자 원본 데이터 가져오기
+                const patientDocRef = doc(db, "artifacts", appId, "public", "data", "waiting_list", patientId);
+                const docSnap = await getDoc(patientDocRef);
+
+                if (docSnap.exists() && docSnap.data().questionnaireData) {
+                    const patientData = docSnap.data();
+                    
+                    // 3. AI 요약 생성 호출 (이제 JSON 객체를 반환)
+                    const aiAnalysis = await generateAISummary(patientData.questionnaireData);
+                    
+                    // 4. AI 요약본 + 원본 데이터로 모달 내용 채우기
+                    displayReportData(patientData, aiAnalysis);
+
+                } else {
+                    reportContent.innerHTML = "<p>문진표 데이터를 불러올 수 없습니다. (데이터가 없거나 삭제됨)</p>";
+                }
+            } catch (error) {
+                console.error("Error fetching patient document or generating summary:", error);
+                reportContent.innerHTML = "<p class='text-red-500 text-center'>환자 리포트를 불러오는 데 실패했습니다.</p>";
+            }
+        };
+
+        /**
+         * 대기자 명단을 화면에 렌더링합니다.
+         */
+        const renderWaitingList = (patients) => {
+            const loadingMsg = document.getElementById('loadingMessage');
+            if (loadingMsg) loadingMsg.remove();
+            waitingListContainer.innerHTML = ""; 
+
+            if (patients.length === 0) {
+                waitingListContainer.innerHTML = '<p class="text-gray-500 text-center bg-white p-6 rounded-lg shadow-md">현재 대기 중인 환자가 없습니다.</p>';
+                return;
+            }
+
+            patients.forEach(patient => {
+                const patientCard = document.createElement('div');
+                patientCard.className = 'patient-card';
+                patientCard.dataset.id = patient.id; 
+
+                if (patient.status === 'completed') {
+                    patientCard.classList.add('report-view-button');
+                }
+
+                patientCard.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <span class="font-bold text-lg text-gray-800">${patient.name}</span>
+                        <span class="text-gray-500 ml-2">(${patient.birthdate})</span>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        ${getStatusChip(patient.status)}
+                        <button title="환자 삭제" class="delete-patient-button" data-id="${patient.id}">&times;</button>
+                    </div>
+                `;
+                waitingListContainer.appendChild(patientCard);
+            });
+        }
+        
+        /**
+         * 실시간 대기자 명단 리스너 설정
+         */
+        const setupWaitingListListener = () => {
+            if (waitingListUnsubscribe) return; 
+
+            const waitingListRef = collection(db, "artifacts", appId, "public", "data", "waiting_list");
+            const q = query(waitingListRef, orderBy("createdAt", "desc")); 
+
+            console.log("Setting up waiting list listener...");
+
+            waitingListUnsubscribe = onSnapshot(q, (querySnapshot) => {
+                const patients = [];
+                querySnapshot.forEach((doc) => {
+                    patients.push({ id: doc.id, ...doc.data() });
+                });
+                console.log("Waiting list updated:", patients);
+                renderWaitingList(patients); 
+            }, (error) => {
+                console.error("Error listening to waiting list:", error);
+                waitingListContainer.innerHTML = '<p class="text-red-500 text-center bg-white p-6">환자 목록을 불러오는 데 실패했습니다.</p>';
+            });
+        }
+
+        /**
+         * 대기자 명단 리스너 해제
+         */
+        const clearWaitingListListener = () => {
+            if (waitingListUnsubscribe) {
+                console.log("Clearing waiting list listener.");
+                waitingListUnsubscribe();
+                waitingListUnsubscribe = null;
+            }
+        }
+
+        /**
+         * 회원가입 처리
+         */
+        const handleSignUp = async (event) => {
+            event.preventDefault();
+            authError.textContent = ""; 
+            const name = document.getElementById('signupName').value;
+            const license = document.getElementById('signupLicense').value;
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+                console.log("User created in Auth:", user.uid);
+
+                const doctorDocRef = doc(db, "artifacts", appId, "users", user.uid);
+                await setDoc(doctorDocRef, {
+                    name: name,
+                    licenseNumber: license,
+                    email: email,
+                    createdAt: new Date()
+                });
+                console.log("Doctor info saved to Firestore.");
+
+                await handleLogout(); 
+                toggleAuthForm('doctorLoginPage');
+                
+                const existingSuccessMsg = document.querySelector('.signup-success-msg');
+                if (existingSuccessMsg) existingSuccessMsg.remove();
+                document.getElementById('doctorLoginPage').insertAdjacentHTML('afterbegin', 
+                    '<p class="text-green-600 text-center mb-4 signup-success-msg">회원가입 성공! 로그인해주세요.</p>'
+                );
+            } catch (error) {
+                console.error("Sign up error:", error);
+                authError.textContent = getFirebaseErrorMessage(error);
+            }
+        };
+
+        /**
+         * 로그인 처리
+         */
+        const handleLogin = async (event) => {
+            event.preventDefault();
+            authError.textContent = "";
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                console.log("Login successful, waiting for auth state change...");
+            } catch (error) {
+                console.error("Login error:", error);
+                authError.textContent = getFirebaseErrorMessage(error);
+            }
+        };
+
+        /**
+         * 로그아웃 처리
+         */
+        const handleLogout = async () => {
+            try {
+                if (auth) {
+                    await signOut(auth);
+                    console.log("Logout successful, waiting for auth state change...");
+                }
+            } catch (error) {
+                console.error("Logout error:", error);
+            }
+        };
+
+        /**
+         * 환자 등록 처리
+         */
+        const handleAddPatient = async (event) => {
+            event.preventDefault();
+            const name = document.getElementById('patientNameInput').value;
+            const birthdate = document.getElementById('patientBirthdateInput').value;
+
+            if (!name || !birthdate) {
+                authError.textContent = "이름과 생년월일을 모두 입력하세요.";
+                return;
+            }
+
+            try {
+                const waitingListRef = collection(db, "artifacts", appId, "public", "data", "waiting_list");
+                await addDoc(waitingListRef, {
+                    name: name,
+                    birthdate: birthdate,
+                    status: "waiting", 
+                    createdAt: new Date()
+                });
+                
+                console.log("Patient added:", name);
+                closePatientModal(); 
+            } catch (error) {
+                console.error("Error adding patient:", error);
+                authError.textContent = "환자 등록에 실패했습니다.";
+            }
+        };
+
+        /**
+         * 환자 삭제 처리
+         */
+        const handleDeletePatient = async (patientId) => {
+            if (!patientId) return;
+            
+            // [수정] confirm() 대신 authError를 사용한 간단한 알림
+            authError.textContent = "삭제하시겠습니까? (기능 확인: 삭제 진행)";
+            // if (!confirm("이 환자를 목록에서 삭제하시겠습니까?")) {
+            //     authError.textContent = ""; // 취소 시 메시지 삭제
+            //     return;
+            // }
+
+            try {
+                const patientDocRef = doc(db, "artifacts", appId, "public", "data", "waiting_list", patientId);
+                await deleteDoc(patientDocRef);
+                console.log("Patient deleted:", patientId);
+                authError.textContent = ""; // 성공 시 메시지 삭제
+            } catch (error) {
+                console.error("Error deleting patient:", error);
+                authError.textContent = "환자 삭제에 실패했습니다.";
+            }
+        };
+
+
+        /**
+         * Firebase 에러 코드를 한글 메시지로 변환
+         */
+        function getFirebaseErrorMessage(error) {
+            switch (error.code) {
+                case 'auth/invalid-email': return '잘못된 이메일 형식입니다.';
+                case 'auth/email-already-in-use': return '이미 사용 중인 이메일입니다.';
+                case 'auth/weak-password': return '비밀번호는 6자리 이상이어야 합니다.';
+                case 'auth/user-not-found':
+                case 'auth/wrong-password':
+                case 'auth/invalid-credential':
+                    return '이메일 또는 비밀번호가 일치하지 않습니다.';
+                default:
+                    return '오류가 발생했습니다: ' + error.message;
+            }
+        }
+
+        // --- Firebase 초기화 및 이벤트 리스너 등록 ---
+        
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            setLogLevel('Debug');
+            console.log("Firebase initialized successfully.");
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    // --- 사용자가 로그인한 경우 ---
+                    console.log("User is logged in:", user.uid);
+                    
+                    try {
+                        const doctorDocRef = doc(db, "artifacts", appId, "users", user.uid);
+                        const docSnap = await getDoc(doctorDocRef);
+                        if (docSnap.exists() && docSnap.data().name) {
+                            const name = docSnap.data().name;
+                            doctorInfoDisplay.textContent = `${name} 님`; 
+                            doctorEmailDisplay.textContent = user.email; 
+                            doctorInitials.textContent = name[0]; 
+                        } else {
+                            doctorInfoDisplay.textContent = user.email; // 폴백
+                            doctorInitials.textContent = user.email[0];
+                        }
+                    } catch (error) {
+                        console.error("Error fetching doctor name:", error);
+                        doctorInfoDisplay.textContent = user.email; // 폴백
+                    }
+                    
+                    setupWaitingListListener();
+
+                    authContainer.style.display = 'none'; 
+                    dashboardPage.style.display = 'flex'; 
+                } else {
+                    // --- 사용자가 로그아웃한 경우 ---
+                    console.log("User is logged out.");
+                    
+                    authContainer.style.display = 'flex'; 
+                    dashboardPage.style.display = 'none'; 
+                    toggleAuthForm('doctorLoginPage');
+                    
+                    clearWaitingListListener(); 
+                    waitingListContainer.innerHTML = ""; 
+                    doctorInfoDisplay.textContent = ""; 
+                    doctorEmailDisplay.textContent = ""; 
+                    doctorInitials.textContent = ""; 
+                }
+            });
+
+        } catch (e) {
+            console.error("Firebase initialization error:", e);
+            if (authError) authError.textContent = "시스템 초기화에 실패했습니다.";
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if(loginForm) loginForm.addEventListener('submit', handleLogin);
+            if(signupForm) signupForm.addEventListener('submit', handleSignUp);
+            if(logoutButton) logoutButton.addEventListener('click', handleLogout);
+            
+            if(showSignupButton) showSignupButton.addEventListener('click', () => toggleAuthForm('doctorSignupPage'));
+            if(showLoginButton) showLoginButton.addEventListener('click', () => toggleAuthForm('doctorLoginPage'));
+            
+            // 환자 등록 모달 버튼
+            if(addPatientButton) addPatientButton.addEventListener('click', openPatientModal);
+            if(closeModalButton) closeModalButton.addEventListener('click', closePatientModal);
+            if(addPatientForm) addPatientForm.addEventListener('submit', handleAddPatient);
+
+            // 리포트 모달 닫기 버튼
+            if(closeReportModalButton) closeReportModalButton.addEventListener('click', closeReportModal);
+
+            // 대기자 명단 클릭 이벤트 위임 (삭제 + 리포트 보기)
+            if(waitingListContainer) {
+                waitingListContainer.addEventListener('click', (event) => {
+                    // 클릭된 요소가 삭제 버튼인지 확인
+                    const deleteButton = event.target.closest('.delete-patient-button');
+                    if (deleteButton) {
+                        event.stopPropagation(); // 카드 클릭으로 이벤트가 전파되는 것을 막음
+                        const patientId = deleteButton.dataset.id;
+                        handleDeletePatient(patientId);
+                        return; // 삭제 버튼 클릭 시 리포트 보기는 실행 안 함
+                    }
+
+                    // 클릭된 요소가 리포트 보기 버튼(카드)인지 확인
+                    const reportButton = event.target.closest('.report-view-button');
+                    if (reportButton) {
+                        const patientId = reportButton.dataset.id;
+                        handleViewReport(patientId);
+                    }
+                });
+            }
+        });
+
+    </script>
+</body>
+</html>
